@@ -22,7 +22,7 @@ if err ~= nil then
 end
 print("locked")
 
-sleep(3)
+sleep(1)
 
 err = mu:unlock()
 if err ~= nil then

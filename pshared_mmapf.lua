@@ -2,7 +2,7 @@ local ffi = require "ffi"
 local bit = require "bit"
 
 local errors = require "errors"
-local pthread_mutex = require "pthread_mutex"
+local pshared_mutex = require "pshared_mutex"
 local sleep = require "sleep"
 
 ffi.cdef [[
@@ -91,6 +91,7 @@ local Mmap = {}
 
 function Mmap:new(attrs)
     local o = attrs
+    o.mutex = pshared_mutex.at(o.addr)
     setmetatable(o, self)
     self.__index = self
     return o
@@ -122,8 +123,7 @@ local function create(filename, map_len)
         return err_close_fd(err)
     end
 
-    local mu = pthread_mutex.at(addr)
-    local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
+    local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len }
 
     local err_close_m = function(err1)
         local err2 = m:close(fd)
@@ -133,7 +133,7 @@ local function create(filename, map_len)
         return nil, errors.join(err1, err2)
     end
 
-    err = mu:init_pshared()
+    err = m.mutex:init()
     if err ~= nil then
         return err_close_m(err)
     end
@@ -163,8 +163,7 @@ local function open(filename, map_len)
         return nil, errors.join(err, err2)
     end
 
-    local mu = pthread_mutex.at(addr)
-    return Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
+    return Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len }
 end
 
 local wait_create_by_other_sec = 0.01 -- 10ms
@@ -172,7 +171,7 @@ local wait_create_by_other_sec = 0.01 -- 10ms
 local function open_or_create(filename, map_len)
     local f, err = open(filename, map_len)
     if err ~= nil then
-        if err.errno ~= errors.ENOENT then
+        if err.errno ~= errors.ENOENT and err.errno ~= errors.EPERM then
             return nil, err
         end
 
@@ -185,6 +184,7 @@ local function open_or_create(filename, map_len)
 
             print("waiting for other process to create file")
             sleep(wait_create_by_other_sec)
+
             f, err = open(filename, map_len)
             if err ~= nil then
                 return nil, err

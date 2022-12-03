@@ -57,17 +57,10 @@ local function mutexattr_setpshared(a, pshared)
     return err_from_rc(ffi.C.pthread_mutexattr_setpshared(a, pshared))
 end
 
-local Mutex = {}
+local metatable = {}
+metatable.__index = metatable
 
-function Mutex:new_at(addr)
-    local inner = ffi.cast("pthread_mutex_t *", addr)
-    local o = { inner = inner }
-    setmetatable(o, self)
-    self.__index = self
-    return o
-end
-
-function Mutex:init_pshared()
+function metatable:init()
     local attr = ffi.new("pthread_mutexattr_t[1]")
     local err = mutexattr_init(attr[0])
     if err ~= nil then
@@ -84,31 +77,33 @@ function Mutex:init_pshared()
         return err
     end
 
-    ffi.C.pthread_mutex_init(self.inner, attr[0])
+    ffi.C.pthread_mutex_init(self, attr[0])
     return mutexattr_destroy(attr[0])
 end
 
-function Mutex:lock()
-    return err_from_rc(ffi.C.pthread_mutex_lock(self.inner))
+function metatable:lock()
+    return err_from_rc(ffi.C.pthread_mutex_lock(self))
 end
 
-function Mutex:unlock()
-    return err_from_rc(ffi.C.pthread_mutex_unlock(self.inner))
+function metatable:unlock()
+    return err_from_rc(ffi.C.pthread_mutex_unlock(self))
 end
 
-function Mutex:destroy()
-    return err_from_rc(ffi.C.pthread_mutex_destroy(self.inner))
+function metatable:destroy()
+    return err_from_rc(ffi.C.pthread_mutex_destroy(self))
 end
 
-local function mutex_at(addr)
-    return Mutex:new_at(addr)
+ffi.metatype('pthread_mutex_t', metatable)
+
+local function at(addr)
+    return ffi.cast("pthread_mutex_t *", addr)
 end
 
-local function mutex_size()
+local function size()
     return ffi.sizeof("pthread_mutex_t")
 end
 
 return {
-    at = mutex_at,
-    size = mutex_size,
+    at = at,
+    size = size,
 }
