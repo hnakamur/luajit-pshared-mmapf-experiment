@@ -2,7 +2,7 @@ local ffi = require "ffi"
 local bit = require "bit"
 
 local errors = require "errors"
-local pthread = require "pthread"
+local pthread_mutex = require "pthread_mutex"
 local sleep = require "sleep"
 
 ffi.cdef [[
@@ -122,7 +122,7 @@ local function create(filename, map_len)
         return err_close_fd(err)
     end
 
-    local mu = pthread.mutex_at(addr)
+    local mu = pthread_mutex.at(addr)
     local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
 
     local err_close_m = function(err1)
@@ -142,7 +142,7 @@ local function create(filename, map_len)
     if err ~= nil then
         return nil, err
     end
-   
+
     return m
 end
 
@@ -163,8 +163,41 @@ local function open(filename, map_len)
         return nil, errors.join(err, err2)
     end
 
-    local mu = pthread.mutex_at(addr)
+    local mu = pthread_mutex.at(addr)
     return Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
+end
+
+local wait_create_by_other_sec = 0.01 -- 10ms
+
+local function open_or_create(filename, map_len)
+    local f, err = open(filename, map_len)
+    if err ~= nil then
+        if err.errno ~= errors.ENOENT then
+            return nil, err
+        end
+
+        print("try creating file")
+        f, err = create(filename, map_len)
+        if err ~= nil then
+            if err.errno ~= errors.EEXIST then
+                return nil, err
+            end
+
+            print("waiting for other process to create file")
+            sleep(wait_create_by_other_sec)
+            f, err = open(filename, map_len)
+            if err ~= nil then
+                return nil, err
+            else
+                print("opened file just created by other process")
+            end
+        else
+            print("created file")
+        end
+    else
+        print("opened file")
+    end
+    return f
 end
 
 function Mmap:close()
@@ -179,4 +212,5 @@ end
 return {
     create = create,
     open = open,
+    open_or_create = open_or_create,
 }

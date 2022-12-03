@@ -53,8 +53,8 @@ local function mutexattr_setrobust(a, robust)
     return err_from_rc(ffi.C.pthread_mutexattr_setrobust(a, robust))
 end
 
-local function mutexattr_setpshared(a, robust)
-    return err_from_rc(ffi.C.pthread_mutexattr_setpshared(a, robust))
+local function mutexattr_setpshared(a, pshared)
+    return err_from_rc(ffi.C.pthread_mutexattr_setpshared(a, pshared))
 end
 
 local Mutex = {}
@@ -67,73 +67,41 @@ function Mutex:new_at(addr)
     return o
 end
 
-function Mutex:init()
-    ffi.C.pthread_mutex_init(self.inner)
-end
-
 function Mutex:init_pshared()
-    print(string.format("Mutex:init_pshared start, inner=%x", ffi.cast("uint64_t", self.inner)))
     local attr = ffi.new("pthread_mutexattr_t[1]")
     local err = mutexattr_init(attr[0])
     if err ~= nil then
         return err
     end
-    print("after mutexattr_init")
+
     err = mutexattr_setrobust(attr[0], ffi.C.PTHREAD_MUTEX_ROBUST)
     if err ~= nil then
         return err
     end
-    print("after mutexattr_setrobust")
+
     err = mutexattr_setpshared(attr[0], ffi.C.PTHREAD_PROCESS_SHARED)
     if err ~= nil then
         return err
     end
-    print("after mutexattr_setpshared")
 
     ffi.C.pthread_mutex_init(self.inner, attr[0])
-    print("after pthread_mutex_init")
-
     return mutexattr_destroy(attr[0])
 end
 
 function Mutex:lock()
-    local rc = ffi.C.pthread_mutex_lock(self.inner)
-    if rc ~= 0 then
-        return errors.new { errno = rc, op = "pthread_mutex_lock" }
-    end
+    return err_from_rc(ffi.C.pthread_mutex_lock(self.inner))
 end
 
 function Mutex:unlock()
-    local rc = ffi.C.pthread_mutex_unlock(self.inner)
-    if rc ~= 0 then
-        return errors.new { errno = rc, op = "pthread_mutex_unlock" }
-    end
+    return err_from_rc(ffi.C.pthread_mutex_unlock(self.inner))
 end
 
 function Mutex:destroy()
-    local rc = ffi.C.pthread_mutex_destroy(self.inner)
-    if rc ~= 0 then
-        return errors.new { errno = rc, op = "pthread_mutex_destroy" }
-    end
+    return err_from_rc(ffi.C.pthread_mutex_destroy(self.inner))
 end
 
 local function mutex_at(addr)
     return Mutex:new_at(addr)
-end
-
-local function new_mutex()
-    local inner = ffi.new("pthread_mutex_t[1]")
-    return mutex_at(inner[0])
-end
-
-local function new_mutex_pshared()
-    local inner = ffi.new("pthread_mutex_t[1]")
-    local mu = mutex_at(inner[0])
-    local err = mu:init_pshared()
-    if err ~= nil then
-        return nil, err
-    end
-    return mu
 end
 
 local function mutex_size()
@@ -141,8 +109,6 @@ local function mutex_size()
 end
 
 return {
-    new_mutex = new_mutex,
-    new_mutex_pshared = new_mutex_pshared,
-    mutex_at = mutex_at,
-    mutex_size = mutex_size,
+    at = mutex_at,
+    size = mutex_size,
 }
