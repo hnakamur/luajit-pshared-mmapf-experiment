@@ -82,9 +82,14 @@ function Error:append(err)
     return join(self, err)
 end
 
+local function unreachable()
+    return new { desc = "unreachable" }
+end
+
 return {
     new       = new,
     new_errno = new_errno,
+    unreachable = unreachable,
     join      = join,
 
     EPERM     = 1, -- Operation not permitted

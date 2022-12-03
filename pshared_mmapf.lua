@@ -7,9 +7,11 @@ local sleep = require "sleep"
 
 ffi.cdef [[
     typedef uint32_t mode_t;
+    typedef int64_t off_t;
 
     int open(const char *pathname, int flags, mode_t mode);
     int close(int fd);
+    int ftruncate(int fd, off_t length);
     ssize_t write(int fd, const void *buf, size_t count);
     int fchmod(int fd, mode_t mode);
 
@@ -51,9 +53,15 @@ function c.close(fd)
     end
 end
 
+function c.ftruncate(fd, length)
+    if ffi.C.ftruncate(fd, length) == -1 then
+        return errors.new_errno { fd = fd }
+    end
+end
+
 function c.fchmod(fd, mode)
     if ffi.C.fchmod(fd, mode) == -1 then
-        return errors.new_errno { fd = fd, mode = mode }
+        return errors.new_errno { fd = fd }
     end
 end
 
@@ -88,86 +96,63 @@ function Mmap:new(attrs)
     return o
 end
 
-local open_max_retries = 3
-local open_retry_interval_seconds = 0.01 -- 10ms
-
-local function init_write_mutex(fd)
-    local mu, err = pthread.new_mutex_pshared()
-    if err ~= nil then
-        return err
-    end
-    if mu == nil then
-        return errors.new { desc = "unreachable" }
-    end
-
-    local _n
-    _n, err = c.write(fd, mu.inner, ffi.sizeof(mu.inner))
-    if err ~= nil then
-        return err
-    end
-
-    err = c.fchmod(fd, bit.bor(S_IRUSR, S_IWUSR))
-    if err ~= nil then
-        return err
-    end
-end
-
-local function open(filename, map_len)
-    local created, fd, err
-    local i = 1
-    while i <= open_max_retries do
-        created = false
-        local flags = bit.bor(O_RDWR, O_CLOEXEC, O_SYNC)
-        fd, err = c.open(filename, flags, S_IRUSR)
-        if err ~= nil then
-            return nil, err
-            -- print(string.format("open err i=%d, errno=%d", i, err.errno))
-            -- if err.errno ~= errors.ENOENT then
-            --     return nil, err
-            -- end
-
-            -- local j = 1
-            -- while j <= open_max_retries do
-            --     -- print(string.format("retrying open, j=%d", j))
-            --     flags = bit.bor(flags, O_CREAT, O_EXCL)
-            --     -- print(string.format("befre retry open, flags=%x", flags))
-            --     fd, err = c.open(filename, flags, S_IRUSR)
-            --     if err ~= nil then
-            --         print(string.format("open err j=%d, errno=%d", j, err.errno))
-            --         if err.errno ~= errors.EEXIST then
-            --             return nil, err
-            --         end
-
-            --         sleep(open_retry_interval_seconds)
-            --         j = j + 1
-            --     else
-            --         created = true
-            --         print("created file for mmap")
-
-            --         err = init_write_mutex(fd)
-            --         if err ~= nil then
-            --             return nil, err
-            --         end
-
-            --         err = c.close(fd)
-            --         if err ~= nil then
-            --             return nil, err
-            --         end
-
-            --         break
-            --     end
-            -- end
-
-            -- i = i + 1
-        else
-            break
-        end
-    end
+local function create(filename, map_len)
+    local flags = bit.bor(O_RDWR, O_CREAT, O_EXCL, O_CLOEXEC, O_SYNC)
+    local fd, err = c.open(filename, flags, S_IRUSR)
     if err ~= nil then
         return nil, err
     end
 
-    print(string.format("fd=%d", fd))
+    local err_close_fd = function(err1)
+        local err2 = c.close(fd)
+        if err2 ~= nil then
+            err2.filename = filename
+        end
+        return nil, errors.join(err1, err2)
+    end
+
+    err = c.ftruncate(fd, map_len)
+    if err ~= nil then
+        return err_close_fd(err)
+    end
+
+    local addr
+    addr, err = c.mmap(nil, map_len, bit.bor(PROT_READ, PROT_WRITE), MAP_SHARED, fd, 0)
+    if err ~= nil then
+        return err_close_fd(err)
+    end
+
+    local mu = pthread.mutex_at(addr)
+    local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
+
+    local err_close_m = function(err1)
+        local err2 = m:close(fd)
+        if err2 ~= nil then
+            err2.filename = filename
+        end
+        return nil, errors.join(err1, err2)
+    end
+
+    err = mu:init_pshared()
+    if err ~= nil then
+        return err_close_m(err)
+    end
+
+    err = c.fchmod(fd, bit.bor(S_IRUSR, S_IWUSR))
+    if err ~= nil then
+        return nil, err
+    end
+   
+    return m
+end
+
+local function open(filename, map_len)
+    local flags = bit.bor(O_RDWR, O_CLOEXEC, O_SYNC)
+    local fd, err = c.open(filename, flags, bit.bor(S_IRUSR, S_IWUSR))
+    if err ~= nil then
+        return nil, err
+    end
+
     local addr
     addr, err = c.mmap(nil, map_len, bit.bor(PROT_READ, PROT_WRITE), MAP_SHARED, fd, 0)
     if err ~= nil then
@@ -179,19 +164,7 @@ local function open(filename, map_len)
     end
 
     local mu = pthread.mutex_at(addr)
-    print(string.format("mu.inner=%x, addr=%x", ffi.cast("uint64_t", mu.inner), ffi.cast("uint64_t", addr)))
-    local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
-
-    -- if created then
-    --     mu:init_pshared()
-    --     err = c.fchmod(fd, bit.bor(S_IRUSR, S_IWUSR))
-    --     if err ~= nil then
-    --         local err2 = m:close()
-    --         return errors.join(err, err2)
-    --     end
-    -- end
-
-    return m
+    return Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
 end
 
 function Mmap:close()
@@ -204,5 +177,6 @@ function Mmap:close()
 end
 
 return {
+    create = create,
     open = open,
 }

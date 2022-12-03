@@ -136,8 +136,13 @@ local function new_mutex_pshared()
     return mu
 end
 
+local function mutex_size()
+    return ffi.sizeof("pthread_mutex_t")
+end
+
 return {
     new_mutex = new_mutex,
     new_mutex_pshared = new_mutex_pshared,
     mutex_at = mutex_at,
+    mutex_size = mutex_size,
 }

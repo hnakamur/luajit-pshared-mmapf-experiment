@@ -1,29 +1,43 @@
 local pshared_mmapf = require "pshared_mmapf"
+local pthread = require "pthread"
 local errors = require "errors"
 local sleep = require "sleep"
 
-local mapf, err = pshared_mmapf.open("b.dat", 4096)
-print(string.format("mapf=%s, err=%s", mapf, err))
+local filename = "b.dat"
+local map_len = 4096
+
+if arg[1] == "init" then
+    print("creating file")
+    local mapf, err = pshared_mmapf.create(filename, map_len)
+    if err ~= nil then
+        print(err:error())
+        return
+    end
+    if mapf == nil then
+        return errors.unreachable()
+    end
+
+    err = mapf:close()
+    if err ~= nil then
+        print(err:error())
+        return
+    end
+
+    print("mutex_size=", pthread.mutex_size())
+    print("created file and initialized mutex, exiting")
+    return
+end
+
+local mapf, err = pshared_mmapf.open(filename, map_len)
 if err ~= nil then
     print(err:error())
     return
 end
 if mapf == nil then
-    return errors.new { desc = "unreachable" }
+    return errors.unreachable()
 end
 
 local mu = mapf.mutex
-print(string.format("mu=%s", mu))
-if arg[1] ~= nil then
-    print("before mu:init_pshared")
-    mu:init_pshared()
-
-    local ffi = require "ffi"
-    print(string.format("mu.inner=%x, mapf.addr=%x", ffi.cast("uint64_t", mu.inner), ffi.cast("uint64_t", mapf.addr)))
-
-    print("initialized mutex")
-end
-
 print("before lock")
 err = mu:lock()
 if err ~= nil then
