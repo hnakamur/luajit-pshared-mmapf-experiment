@@ -23,4 +23,7 @@ os.execute(cmd)
 local data2 = ffi.string(m.addr, n)
 print(string.format("a.lua data2=\"%s\"", data2))
 
-m:close()
+err = m:close()
+if err ~= nil then
+	print(string.format("got err: %s", err:error()))
+end

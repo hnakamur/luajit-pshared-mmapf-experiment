@@ -16,4 +16,8 @@ print(string.format("b.lua addr=%x", ffi.cast("uint64_t", m.addr)))
 local data = ffi.string(m.addr, #"hello japan")
 print(string.format("b.lua data=\"%s\"", data))
 ffi.copy(m.addr + 6, "world", 5)
-m:close()
+
+err = m:close()
+if err ~= nil then
+	print(string.format("got err: %s", err:error()))
+end

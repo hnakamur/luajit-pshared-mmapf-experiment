@@ -1,4 +1,18 @@
 local ffi = require "ffi"
+local cjson = require "cjson"
+
+local Error = {}
+
+function Error:new(attrs)
+    local o = attrs
+    setmetatable(o, self)
+    self.__index = self
+    return o
+end
+
+function Error:error()
+    return cjson.encode(self)
+end
 
 ffi.cdef [[
     char *strerror(int errnum);
@@ -8,28 +22,20 @@ local function strerror(errnum)
     return ffi.string(ffi.C.strerror(errnum))
 end
 
-local Errno = {
-    errno = 0,
-    detail = "",
-}
-
-function Errno:new(errno, detail)
-    local o = { errno = errno, detail = detail }
-    setmetatable(o, self)
-    self.__index = self
-    return o
+local function new_errno(attrs)
+    if attrs.errno == nil then
+        attrs.errno = ffi.errno()
+    end
+    if attrs.desc == nil then
+        attrs.desc = strerror(attrs.errno)
+    end
+    return Error:new(attrs)
 end
 
-function Errno:error()
-    return string.format("{errno=%d, desc=%s, detail=\"%s\"}", self.errno, strerror(self.errno), self.detail)
-end
-
-local MultiErrors = {
-    errs = {}
-}
+local MultiErrors = Error:new {}
 
 function MultiErrors:new(errs)
-    local o = { errs = errs }
+    local o = errs
     setmetatable(o, self)
     self.__index = self
     return o
@@ -37,20 +43,8 @@ end
 
 function MultiErrors:append(errno_obj)
     if errno_obj ~= nil then
-        table.insert(self.errs, errno_obj)
+        table.insert(self, errno_obj)
     end
-end
-
-function MultiErrors:error()
-    local msgs = {}
-    for i, err in ipairs(self.errs) do
-        msgs[i] = err:error()
-    end
-    return table.concat(msgs, ", ")
-end
-
-local function new_errno(detail)
-    return Errno:new(ffi.errno(), detail)
 end
 
 local function join(errno_obj1, errno_obj2)
@@ -64,7 +58,7 @@ local function join(errno_obj1, errno_obj2)
 end
 
 return {
-    Errno = Errno,
+    Error = Error,
     new_errno = new_errno,
     join = join,
 }
