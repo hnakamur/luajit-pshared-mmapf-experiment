@@ -72,25 +72,26 @@ function Mutex:init()
 end
 
 function Mutex:init_pshared()
+    print(string.format("Mutex:init_pshared start, inner=%x", ffi.cast("uint64_t", self.inner)))
     local attr = ffi.new("pthread_mutexattr_t[1]")
     local err = mutexattr_init(attr[0])
     if err ~= nil then
         return err
     end
-    err = mutexattr_init(attr[0])
-    if err ~= nil then
-        return err
-    end
+    print("after mutexattr_init")
     err = mutexattr_setrobust(attr[0], ffi.C.PTHREAD_MUTEX_ROBUST)
     if err ~= nil then
         return err
     end
+    print("after mutexattr_setrobust")
     err = mutexattr_setpshared(attr[0], ffi.C.PTHREAD_PROCESS_SHARED)
     if err ~= nil then
         return err
     end
+    print("after mutexattr_setpshared")
 
     ffi.C.pthread_mutex_init(self.inner, attr[0])
+    print("after pthread_mutex_init")
 
     return mutexattr_destroy(attr[0])
 end

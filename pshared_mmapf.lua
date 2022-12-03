@@ -179,7 +179,7 @@ local function open(filename, map_len)
     end
 
     local mu = pthread.mutex_at(addr)
-    print(string.format("mu=%p, addr=%x", mu, ffi.cast("uint64_t", addr)))
+    print(string.format("mu.inner=%x, addr=%x", ffi.cast("uint64_t", mu.inner), ffi.cast("uint64_t", addr)))
     local m = Mmap:new { fd = fd, addr = addr, filename = filename, map_len = map_len, mutex = mu, }
 
     -- if created then
