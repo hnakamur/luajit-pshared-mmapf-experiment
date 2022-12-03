@@ -2,6 +2,13 @@ local pshared_mmapf = require "pshared_mmapf"
 local errors = require "errors"
 local sleep = require "sleep"
 
+if arg[1] ~= nil then
+    local wait = tonumber(arg[1])
+    if wait ~= nil then
+        sleep(wait)
+    end
+end
+
 local filename = "b.dat"
 local map_len = 4096
 local mapf, err = pshared_mmapf.open_or_create(filename, map_len)
