@@ -1,3 +1,13 @@
+local ffi = require "ffi"
+
+ffi.cdef [[
+    char *strerror(int errnum);
+]]
+
+local function strerror(errnum)
+    return ffi.string(ffi.C.strerror(errnum))
+end
+
 local Errno = {
     errno = 0,
     detail = "",
@@ -11,7 +21,7 @@ function Errno:new(errno, detail)
 end
 
 function Errno:error()
-    return string.format("{errno=%d, detail=\"%s\"}", self.errno, self.detail)
+    return string.format("{errno=%d, desc=%s, detail=\"%s\"}", self.errno, strerror(self.errno), self.detail)
 end
 
 local MultiErrors = {
@@ -39,6 +49,10 @@ function MultiErrors:error()
     return table.concat(msgs, ", ")
 end
 
+local function new_errno(detail)
+    return Errno:new(ffi.errno(), detail)
+end
+
 local function join(errno_obj1, errno_obj2)
     if errno_obj1 ~= nil then
         if errno_obj2 ~= nil then
@@ -51,5 +65,6 @@ end
 
 return {
     Errno = Errno,
+    new_errno = new_errno,
     join = join,
 }
