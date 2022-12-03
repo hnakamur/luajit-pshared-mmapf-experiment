@@ -11,15 +11,22 @@ ffi.cdef [[
     int munmap(void *addr, size_t length);
 ]]
 
--- Defined in /usr/include/asm-generic/fcntl.h
-local O_RDWR = 0x0002
+-- See /usr/include/asm-generic/fcntl.h
+local O_RDWR = 0x2
+local O_CREAT = 0x40
+local O_EXCL = 0x80
 local O_SYNC = 0x1000
+local O_CLOEXEC = 0x80000
 
--- Defined in /usr/include/x86_64-linux-gnu/bits/mman-linux.h
+-- See /usr/include/linux/stat.h
+local S_IWUSR = 0x80
+local S_IRUSR = 0x100
+
+-- See /usr/include/x86_64-linux-gnu/bits/mman-linux.h
 local PROT_READ  = 0x01 -- pages can be read
 local PROT_WRITE = 0x02 -- pages can be written
 
--- Defined in /usr/include/x86_64-linux-gnu/bits/mman-linux.h
+-- See /usr/include/x86_64-linux-gnu/bits/mman-linux.h
 local MAP_SHARED = 0x01 -- share changes
 
 local Mmap = {}
