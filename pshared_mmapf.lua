@@ -171,11 +171,11 @@ local wait_create_by_other_sec = 0.01 -- 10ms
 local function open_or_create(filename, map_len)
     local f, err = open(filename, map_len)
     if err ~= nil then
-        if err.errno ~= errors.ENOENT and err.errno ~= errors.EPERM then
+        if err.errno ~= errors.ENOENT and err.errno ~= errors.EACCES then
             return nil, err
         end
 
-        print("try creating file")
+        print(string.format("try creating file after open err=%s", err.errno == errors.ENOENT and "ENOENT" or "EACCES"))
         f, err = create(filename, map_len)
         if err ~= nil then
             if err.errno ~= errors.EEXIST then
