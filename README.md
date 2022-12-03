@@ -3,6 +3,7 @@
 An experiment of a mutex on a memory mapped file shared between multiple processes.
 
 This implementation is based on the answer at https://stackoverflow.com/a/53577034/1391518.
+Also some code are copied and modified from [allegory-software/allegory-sdk](https://github.com/allegory-software/allegory-sdk).
 Thanks!
 
 ## example session
