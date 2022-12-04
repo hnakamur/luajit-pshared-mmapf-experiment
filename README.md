@@ -6,6 +6,8 @@ This implementation is based on the answer at https://stackoverflow.com/a/535770
 Also some code are copied and modified from [allegory-software/allegory-sdk](https://github.com/allegory-software/allegory-sdk).
 Thanks!
 
+I wrote [a blog](https://hnakamur.github.io/blog/2022/12/04/tried-shared-memory-in-luajit-and-ffi/) about this example (in Japanese).
+
 ## example usage
 
 Run the following commands in parallel (for example, on tmux panes).
