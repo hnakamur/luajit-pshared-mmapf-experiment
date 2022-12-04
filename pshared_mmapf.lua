@@ -2,7 +2,7 @@ local ffi = require "ffi"
 local bit = require "bit"
 
 local errors = require "errors"
-local pshared_mutex = require "pshared_mutex"
+local pshared_rwlock = require "pshared_rwlock"
 local sleep = require "sleep"
 
 ffi.cdef [[
@@ -91,7 +91,7 @@ local Mmap = {}
 
 function Mmap:new(attrs)
     local o = attrs
-    o.mutex = pshared_mutex.at(o.addr)
+    o.rwlock = pshared_rwlock.at(o.addr)
     setmetatable(o, self)
     self.__index = self
     return o
@@ -133,7 +133,7 @@ local function create(filename, map_len)
         return nil, errors.join(err1, err2)
     end
 
-    err = m.mutex:init()
+    err = m.rwlock:init()
     if err ~= nil then
         return err_close_m(err)
     end
@@ -210,7 +210,5 @@ function Mmap:close()
 end
 
 return {
-    create = create,
-    open = open,
     open_or_create = open_or_create,
 }
