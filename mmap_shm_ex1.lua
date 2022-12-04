@@ -1,11 +1,12 @@
 local mmap_shm = require "mmap_shm"
+local pshared_rwlock = require "pshared_rwlock"
 local errors = require "errors"
 local sleep = require "sleep"
 
 local lock_hold_max_duration_seconds = 2
-local loop_count = 10
+local loop_count = 5
 
-local shm_name = "/somename"
+local shm_name = "/my-shm-experiment"
 local map_len = 4096
 
 local op = arg[1]
@@ -28,7 +29,8 @@ else
     return
 end
 
-local ms, err = mmap_shm.open_or_create(shm_name, map_len)
+local ms, err = mmap_shm.open_or_create(shm_name, map_len,
+    pshared_rwlock.PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP)
 if err ~= nil then
     print(err:error())
     return

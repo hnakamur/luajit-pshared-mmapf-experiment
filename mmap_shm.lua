@@ -94,7 +94,7 @@ function MmapShm:new(attrs)
     return o
 end
 
-local function create(shm_name, map_len)
+local function create(shm_name, map_len, rwlock_pref)
     local flags = bit.bor(O_RDWR, O_CREAT, O_EXCL)
     local fd, err = shm_open(shm_name, flags, S_IRUSR)
     if err ~= nil then
@@ -122,7 +122,7 @@ local function create(shm_name, map_len)
         return err1:append(munmap(addr, map_len)):append(close(fd))
     end
 
-    err = ms.rwlock:init()
+    err = ms.rwlock:init(rwlock_pref)
     if err ~= nil then
         return err_unmap_close_shm(err)
     end
@@ -163,7 +163,7 @@ end
 
 local wait_create_by_other_sec = 0.01 -- 10ms
 
-local function open_or_create(shm_name, map_len)
+local function open_or_create(shm_name, map_len, rwlock_pref)
     local f, err = open(shm_name, map_len)
     if err ~= nil then
         if err.errno ~= errors.ENOENT and err.errno ~= errors.EACCES then
@@ -171,7 +171,7 @@ local function open_or_create(shm_name, map_len)
         end
 
         print(string.format("try creating MmapShm after open err=%s", err.errno == errors.ENOENT and "ENOENT" or "EACCES"))
-        f, err = create(shm_name, map_len)
+        f, err = create(shm_name, map_len, rwlock_pref)
         if err ~= nil then
             if err.errno ~= errors.EEXIST then
                 return nil, err

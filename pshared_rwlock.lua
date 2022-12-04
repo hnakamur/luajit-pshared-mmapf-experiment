@@ -23,6 +23,13 @@ ffi.cdef [[
         PTHREAD_PROCESS_SHARED
     };
     int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *attr, int pshared);
+    enum {
+      PTHREAD_RWLOCK_PREFER_READER_NP,
+      PTHREAD_RWLOCK_PREFER_WRITER_NP,
+      PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP,
+      PTHREAD_RWLOCK_DEFAULT_NP = PTHREAD_RWLOCK_PREFER_READER_NP
+    };
+    int pthread_rwlockattr_setkind_np(pthread_rwlockattr_t *attr, int pref);
 
     int pthread_rwlock_init(pthread_rwlock_t *l, const pthread_rwlockattr_t *attr);
     int pthread_rwlock_destroy(pthread_rwlock_t *l);
@@ -51,10 +58,14 @@ local function rwlockattr_setpshared(a, pshared)
     return err_from_rc(ffi.C.pthread_rwlockattr_setpshared(a, pshared))
 end
 
+local function rwlockattr_setkind_np(a, pref)
+    return err_from_rc(ffi.C.pthread_rwlockattr_setkind_np(a, pref))
+end
+
 local metatable = {}
 metatable.__index = metatable
 
-function metatable:init()
+function metatable:init(rwlock_pref)
     local attr = ffi.new("pthread_rwlockattr_t[1]")
     local err = rwlockattr_init(attr[0])
     if err ~= nil then
@@ -64,6 +75,13 @@ function metatable:init()
     err = rwlockattr_setpshared(attr[0], ffi.C.PTHREAD_PROCESS_SHARED)
     if err ~= nil then
         return err
+    end
+
+    if rwlock_pref ~= nil then
+        err = rwlockattr_setkind_np(attr[0], rwlock_pref)
+        if err ~= nil then
+            return err
+        end
     end
 
     ffi.C.pthread_rwlock_init(self, attr[0])
@@ -107,4 +125,6 @@ end
 return {
     at = at,
     size = size,
+    PTHREAD_RWLOCK_PREFER_READER_NP = ffi.C.PTHREAD_RWLOCK_PREFER_READER_NP,
+    PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP = ffi.C.PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP,
 }

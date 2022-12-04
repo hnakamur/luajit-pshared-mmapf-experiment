@@ -97,7 +97,7 @@ function Mmap:new(attrs)
     return o
 end
 
-local function create(filename, map_len)
+local function create(filename, map_len, rwlock_pref)
     local flags = bit.bor(O_RDWR, O_CREAT, O_EXCL, O_CLOEXEC, O_SYNC)
     local fd, err = c.open(filename, flags, S_IRUSR)
     if err ~= nil then
@@ -133,7 +133,7 @@ local function create(filename, map_len)
         return nil, errors.join(err1, err2)
     end
 
-    err = m.rwlock:init()
+    err = m.rwlock:init(rwlock_pref)
     if err ~= nil then
         return err_close_m(err)
     end
@@ -168,7 +168,7 @@ end
 
 local wait_create_by_other_sec = 0.01 -- 10ms
 
-local function open_or_create(filename, map_len)
+local function open_or_create(filename, map_len, rwlock_pref)
     local f, err = open(filename, map_len)
     if err ~= nil then
         if err.errno ~= errors.ENOENT and err.errno ~= errors.EACCES then
@@ -176,7 +176,7 @@ local function open_or_create(filename, map_len)
         end
 
         print(string.format("try creating file after open err=%s", err.errno == errors.ENOENT and "ENOENT" or "EACCES"))
-        f, err = create(filename, map_len)
+        f, err = create(filename, map_len, rwlock_pref)
         if err ~= nil then
             if err.errno ~= errors.EEXIST then
                 return nil, err

@@ -1,4 +1,5 @@
 local pshared_mmapf = require "pshared_mmapf"
+local pshared_rwlock = require "pshared_rwlock"
 local errors = require "errors"
 local sleep = require "sleep"
 
@@ -9,7 +10,8 @@ local loop_count = 10
 local filename = "b.dat"
 local map_len = 4096
 
-local mapf, err = pshared_mmapf.open_or_create(filename, map_len)
+local mapf, err = pshared_mmapf.open_or_create(filename, map_len,
+    pshared_rwlock.PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP)
 if err ~= nil then
     print(err:error())
     return
